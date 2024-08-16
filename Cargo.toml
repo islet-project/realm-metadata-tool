@@ -1,0 +1,19 @@
+[package]
+name = "realm-metadata-tool"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+array-init = "*"
+bincode = "*"
+clap = { version = "*", features = ["derive"] }
+hex = "*"
+hexdump = "*"
+p384 = { version = "*", features = [ "pem" ] }
+sec1 = "*"
+semver = "*"
+serde = { version = "*", features = ["derive", "alloc"] }
+serde-big-array = "*"
+serde_derive = "*"
+serde_yaml = "*"
+thiserror = "*"
