@@ -1,12 +1,6 @@
 use array_init::array_init;
 use core::fmt::Display;
 use hexdump::hexdump;
-use p384::{
-    ecdsa::{signature::Verifier, Signature, VerifyingKey},
-    elliptic_curve::generic_array::GenericArray,
-    EncodedPoint,
-};
-use sec1::point::Coordinates;
 use semver::Version;
 use serde_big_array::BigArray;
 use serde_derive::{Deserialize, Serialize};
@@ -17,7 +11,9 @@ use std::{
 };
 
 use crate::{
-    crypto,
+    crypto::{
+        self, MetadataPrivateKey, MetadataPublicKey, MetadataSignature, MetadataSigningKey, MetadataVerifyingKey
+    },
     error::Result,
     manifest::{HashAlgorithm, Manifest},
     utils,
@@ -25,9 +21,18 @@ use crate::{
 
 const FMT_VERSION: u64 = 1;
 const REALM_ID_SIZE: usize = 128;
-const RIM_SIZE: usize = 64;
-const PUBLIC_KEY_SIZE: usize = 96;
-const SIGNATURE_SIZE: usize = 96;
+const RIM_SIZE_SHA256: usize = 32;
+const RIM_SIZE_SHA512: usize = 64;
+const RIM_SIZE: usize = {
+    const fn max(a: usize, b: usize) -> usize {
+        if a > b {
+            a
+        } else {
+            b
+        }
+    }
+    max(RIM_SIZE_SHA256, RIM_SIZE_SHA512)
+};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Metadata {
@@ -42,7 +47,7 @@ pub struct Metadata {
     version_patch: u64,
     security_version_number: u64,
     #[serde(with = "BigArray")]
-    public_key: [u8; PUBLIC_KEY_SIZE],
+    public_key: [u8; crypto::PUBLIC_KEY_SIZE],
 }
 
 impl Display for Metadata {
@@ -50,8 +55,16 @@ impl Display for Metadata {
         writeln!(f, "fmt:        {}", self.fmt_version)?;
         writeln!(f, "realm_id:   '{}'", utils::arr_to_string(&self.realm_id))?;
         writeln!(f, "rim:        {}", utils::arr_to_hex(&self.rim))?;
-        writeln!(f, "hash_algo:  {}", HashAlgorithm::try_from(self.hash_algo).unwrap())?;
-        writeln!(f, "version:    {}.{}.{}", self.version_major, self.version_minor, self.version_patch)?;
+        writeln!(
+            f,
+            "hash_algo:  {}",
+            HashAlgorithm::try_from(self.hash_algo).unwrap()
+        )?;
+        writeln!(
+            f,
+            "version:    {}.{}.{}",
+            self.version_major, self.version_minor, self.version_patch
+        )?;
         writeln!(f, "svn:        {}", self.security_version_number)?;
         writeln!(f, "public_key: {}", utils::arr_to_hex(&self.public_key))
     }
@@ -86,27 +99,19 @@ impl Metadata {
         Ok(metadata)
     }
 
-    pub fn set_public_key(&mut self, public_key: &p384::PublicKey) {
-        let verifying_key = p384::ecdsa::VerifyingKey::from(public_key);
-        let point = verifying_key.to_encoded_point(false);
-
-        match point.coordinates() {
-            Coordinates::Uncompressed { x, y } => {
-                self.public_key[0..PUBLIC_KEY_SIZE / 2].copy_from_slice(x);
-                self.public_key[PUBLIC_KEY_SIZE / 2..PUBLIC_KEY_SIZE].copy_from_slice(y);
-            }
-            _ => panic!("Invalid type of Coordinates, they should be Uncompressed!"),
-        }
+    pub fn set_public_key(&mut self, public_key: &MetadataPublicKey) {
+        self.public_key
+            .copy_from_slice(public_key.to_vec().as_slice());
     }
 
-    pub fn get_verifying_key(&self) -> Result<VerifyingKey> {
-        let point = EncodedPoint::from_untagged_bytes(GenericArray::from_slice(&self.public_key));
-        Ok(VerifyingKey::from_encoded_point(&point)?)
+    pub fn get_verifying_key(&self) -> Result<MetadataVerifyingKey> {
+        MetadataVerifyingKey::from_slice(&self.public_key)
     }
 
-    pub fn sign(&self, private_key: &p384::SecretKey) -> Result<SignedMetadata> {
+    pub fn sign(&self, private_key: &MetadataPrivateKey) -> Result<SignedMetadata> {
         let encoded = utils::serialize(self)?;
-        let signature = crypto::sign(&encoded, private_key)?;
+        let signing_key: MetadataSigningKey = private_key.clone().into();
+        let signature = signing_key.sign(encoded.as_slice())?;
 
         let mut signed_metadata = SignedMetadata {
             metadata: self.clone(),
@@ -115,7 +120,7 @@ impl Metadata {
 
         signed_metadata
             .signature
-            .copy_from_slice(signature.to_bytes().as_slice());
+            .copy_from_slice(signature.to_vec().as_slice());
 
         Ok(signed_metadata)
     }
@@ -125,18 +130,22 @@ impl Metadata {
 pub struct SignedMetadata {
     metadata: Metadata,
     #[serde(with = "BigArray")]
-    signature: [u8; SIGNATURE_SIZE],
+    signature: [u8; crypto::SIGNATURE_SIZE],
 }
 
 impl Display for SignedMetadata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}signature: '{}'",
-            self.metadata, utils::arr_to_hex(&self.signature))
+        write!(
+            f,
+            "{}signature:  {}",
+            self.metadata,
+            utils::arr_to_hex(&self.signature)
+        )
     }
 }
 
 impl SignedMetadata {
-    pub fn write(&self, path: &PathBuf) -> Result<()> {
+    pub fn to_file(&self, path: &PathBuf) -> Result<()> {
         let encoded = utils::serialize(self)?;
 
         let mut file = File::create(path)?;
@@ -154,8 +163,8 @@ impl SignedMetadata {
         utils::deserialize(&buffer)
     }
 
-    pub fn get_signature(&self) -> Result<Signature> {
-        Ok(Signature::from_slice(&self.signature)?)
+    pub fn get_signature(&self) -> Result<MetadataSignature> {
+        MetadataSignature::from_slice(&self.signature)
     }
 
     pub fn verify(&self) -> Result<bool> {
@@ -163,7 +172,7 @@ impl SignedMetadata {
         let encoded = utils::serialize(&self.metadata)?;
         let signature = self.get_signature()?;
 
-        verifying_key.verify(&encoded, &signature)?;
+        verifying_key.verify(&signature, encoded.as_slice())?;
 
         Ok(true)
     }
@@ -172,5 +181,75 @@ impl SignedMetadata {
         println!("====");
         hexdump(&utils::serialize(self)?);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    use crypto::MetadataSigningKey;
+
+    const METADATA_SIZE: usize = 0x150;
+    const SIGNED_METADATA_SIZE: usize = METADATA_SIZE + crypto::SIGNATURE_SIZE;
+
+    fn get_template_metadata() -> Metadata {
+        Metadata {
+            fmt_version: FMT_VERSION,
+            realm_id: array_init(|_| 0),
+            rim: array_init(|_| 0),
+            hash_algo: 1,
+            version_major: 1,
+            version_minor: 2,
+            version_patch: 3,
+            security_version_number: 100,
+            public_key: array_init(|_| 0),
+        }
+    }
+
+    #[test]
+    fn check_the_size_of_metadata() {
+        let metadata = get_template_metadata();
+        assert_eq!(utils::serialize(&metadata).unwrap().len(), METADATA_SIZE);
+    }
+
+    #[test]
+    fn check_the_size_of_signed_metadata() {
+        let signed_metadata = SignedMetadata {
+            metadata: get_template_metadata(),
+            signature: array_init(|_| 0),
+        };
+
+        assert_eq!(
+            utils::serialize(&signed_metadata).unwrap().len(),
+            SIGNED_METADATA_SIZE
+        );
+    }
+
+    #[test]
+    fn public_key_is_properly_encoded() {
+        let signing_key = MetadataSigningKey::random();
+        let verifying_key: MetadataVerifyingKey = signing_key.into();
+        let public_key: MetadataPublicKey = verifying_key.clone().into();
+        let mut metadata = get_template_metadata();
+        metadata.set_public_key(&public_key);
+
+        let extracted_verifying_key = metadata.get_verifying_key().unwrap();
+        assert_eq!(verifying_key, extracted_verifying_key);
+    }
+
+    #[test]
+    fn signature_is_valid() {
+        let signing_key = MetadataSigningKey::random();
+        let private_key: MetadataPrivateKey = signing_key.clone().into();
+        let verifying_key: MetadataVerifyingKey = signing_key.into();
+        let public_key: MetadataPublicKey = verifying_key.into();
+
+        let mut metadata = get_template_metadata();
+        metadata.set_public_key(&public_key);
+
+        let signed_metadata = metadata.sign(&private_key).unwrap();
+        assert!(signed_metadata.verify().unwrap());
     }
 }
