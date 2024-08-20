@@ -17,3 +17,6 @@ serde-big-array = "*"
 serde_derive = "*"
 serde_yaml = "*"
 thiserror = "*"
+
+[dev-dependencies]
+rand_core = "*"

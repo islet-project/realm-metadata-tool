@@ -38,6 +38,6 @@ pub enum Commands {
 
         /// Dump metadata structure in a hexadecimal format
         #[arg(long)]
-        hexdump: bool
+        hexdump: bool,
     },
 }

@@ -36,6 +36,5 @@ pub fn arr_to_hex(bytes: &[u8]) -> String {
 pub fn arr_to_string(arr: &[u8]) -> String {
     let len = arr.iter().position(|&x| x == 0).unwrap_or(arr.len());
     let valid_bytes = &arr[..len];
-    String::from_utf8(valid_bytes.to_vec())
-        .expect("utf8 conversion error")
+    String::from_utf8(valid_bytes.to_vec()).expect("utf8 conversion error")
 }

@@ -24,10 +24,19 @@ fn main() -> Result<()> {
         },
         cli::Commands::Verify { input } => match commands::verify_metadata_file(&input) {
             Ok(result) => match result {
-                true => println!("The signature of '{}' metadata file is valid", input.display()),
-                false => println!("The signature of '{}' metadata file is invalid!", input.display()),
+                true => println!(
+                    "The signature of '{}' metadata file is valid.",
+                    input.display()
+                ),
+                false => println!(
+                    "The signature of '{}' metadata file is invalid!",
+                    input.display()
+                ),
             },
-            Err(e) => println!("An error occurred while verifying '{}' metadata file: {e}", input.display()),
+            Err(e) => println!(
+                "An error occurred while verifying '{}' metadata file: {e}",
+                input.display()
+            ),
         },
         cli::Commands::Dump { input, hexdump } => {
             return commands::dump_metadata_file(&input, hexdump);
