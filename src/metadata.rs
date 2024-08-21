@@ -54,7 +54,7 @@ impl Display for Metadata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "fmt:        {}", self.fmt_version)?;
         writeln!(f, "realm_id:   '{}'", utils::arr_to_string(&self.realm_id))?;
-        writeln!(f, "rim:        {}", utils::arr_to_hex(&self.rim))?;
+        writeln!(f, "rim:        {}", hex::encode_upper(&self.rim))?;
         writeln!(
             f,
             "hash_algo:  {}",
@@ -66,7 +66,7 @@ impl Display for Metadata {
             self.version_major, self.version_minor, self.version_patch
         )?;
         writeln!(f, "svn:        {}", self.security_version_number)?;
-        writeln!(f, "public_key: {}", utils::arr_to_hex(&self.public_key))
+        writeln!(f, "public_key: {}", hex::encode_upper(&self.public_key))
     }
 }
 
@@ -139,7 +139,7 @@ impl Display for SignedMetadata {
             f,
             "{}signature:  {}",
             self.metadata,
-            utils::arr_to_hex(&self.signature)
+            hex::encode_upper(&self.signature)
         )
     }
 }

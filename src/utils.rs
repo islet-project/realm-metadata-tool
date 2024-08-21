@@ -1,6 +1,5 @@
 use bincode::{self, Options};
 use serde::{Deserialize, Serialize};
-use std::fmt::Write;
 
 use crate::error::Result;
 
@@ -24,13 +23,6 @@ where
     let decoded: T = opts.deserialize(buffer.as_slice())?;
 
     Ok(decoded)
-}
-
-pub fn arr_to_hex(bytes: &[u8]) -> String {
-    bytes.iter().fold(String::new(), |mut output, b| {
-        let _ = write!(output, "{b:02X}");
-        output
-    })
 }
 
 pub fn arr_to_string(arr: &[u8]) -> String {
