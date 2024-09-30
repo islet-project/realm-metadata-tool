@@ -24,6 +24,7 @@ pub fn dump_metadata_file(input: &PathBuf, print_hexdump: bool) -> Result<()> {
     let signed_metadata = SignedMetadata::from_file(input)?;
     println!("{}", signed_metadata);
     if print_hexdump {
+        println!("-- hexdump --");
         signed_metadata.hexdump()?;
     }
     Ok(())
