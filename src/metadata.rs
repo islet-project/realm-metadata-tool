@@ -42,10 +42,10 @@ pub struct Metadata {
     #[serde(with = "BigArray")]
     rim: [u8; RIM_SIZE],
     hash_algo: u64,
+    security_version_number: u64,
     version_major: u64,
     version_minor: u64,
     version_patch: u64,
-    security_version_number: u64,
     #[serde(with = "BigArray")]
     public_key: [u8; crypto::PUBLIC_KEY_SIZE],
 }
@@ -54,7 +54,7 @@ impl Display for Metadata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "fmt:        {}", self.fmt_version)?;
         writeln!(f, "realm_id:   '{}'", utils::arr_to_string(&self.realm_id))?;
-        writeln!(f, "rim:        {}", hex::encode_upper(&self.rim))?;
+        writeln!(f, "rim:        {}", hex::encode_upper(self.rim))?;
         writeln!(
             f,
             "hash_algo:  {}",
@@ -66,7 +66,7 @@ impl Display for Metadata {
             self.version_major, self.version_minor, self.version_patch
         )?;
         writeln!(f, "svn:        {}", self.security_version_number)?;
-        writeln!(f, "public_key: {}", hex::encode_upper(&self.public_key))
+        writeln!(f, "public_key: {}", hex::encode_upper(self.public_key))
     }
 }
 
@@ -79,10 +79,10 @@ impl Metadata {
             realm_id: array_init(|_| 0),
             rim: array_init(|_| 0),
             hash_algo: manifest.hash_algo.clone().into(),
+            security_version_number: manifest.svn,
             version_major: ver.major,
             version_minor: ver.minor,
             version_patch: ver.patch,
-            security_version_number: manifest.svn,
             public_key: array_init(|_| 0),
         };
 
@@ -139,7 +139,7 @@ impl Display for SignedMetadata {
             f,
             "{}signature:  {}",
             self.metadata,
-            hex::encode_upper(&self.signature)
+            hex::encode_upper(self.signature)
         )
     }
 }
@@ -178,7 +178,6 @@ impl SignedMetadata {
     }
 
     pub fn hexdump(&self) -> Result<()> {
-        println!("====");
         hexdump(&utils::serialize(self)?);
         Ok(())
     }
