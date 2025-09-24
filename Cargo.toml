@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 array-init = "*"
-bincode = "*"
+bincode = "1"
 clap = { version = "*", features = ["derive"] }
 hex = "*"
 hexdump = "*"
