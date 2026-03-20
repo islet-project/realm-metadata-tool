@@ -54,11 +54,16 @@ impl Display for Metadata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "fmt:        {}", self.fmt_version)?;
         writeln!(f, "realm_id:   '{}'", utils::arr_to_string(&self.realm_id))?;
-        writeln!(f, "rim:        {}", hex::encode_upper(self.rim))?;
+        let hash_algorithm = HashAlgorithm::try_from(self.hash_algo).unwrap();
+        let display_length = match hash_algorithm {
+            HashAlgorithm::SHA256 => 32,
+            HashAlgorithm::SHA512 => 64,
+        };
+        writeln!(f, "rim:        {}", hex::encode_upper(&self.rim[0..display_length]))?;
         writeln!(
             f,
             "hash_algo:  {}",
-            HashAlgorithm::try_from(self.hash_algo).unwrap()
+            hash_algorithm
         )?;
         writeln!(
             f,
