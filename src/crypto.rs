@@ -3,15 +3,14 @@ use p384::{
         signature::{Signer, Verifier},
         Signature,
     },
-    elliptic_curve::generic_array::GenericArray,
-    EncodedPoint,
+    elliptic_curve::{
+        array::Array,
+        consts::U96,
+    },
+    Sec1Point,
 };
-use sec1::point::Coordinates;
 use std::fs;
 use std::path::PathBuf;
-
-#[cfg(test)]
-use rand_core::OsRng;
 
 use crate::error::Result;
 
@@ -54,7 +53,9 @@ impl From<MetadataPrivateKey> for MetadataPublicKey {
 impl MetadataSigningKey {
     #[cfg(test)]
     pub fn random() -> Self {
-        MetadataSigningKey(p384::ecdsa::SigningKey::random(&mut OsRng))
+        let secret = p384::SecretKey::from_slice(&[0xC0u8; p384::U384::BYTES])
+            .expect("fixed test key is valid");
+        MetadataSigningKey((&secret).into())
     }
 
     pub fn sign(&self, data: &[u8]) -> Result<MetadataSignature> {
@@ -78,15 +79,15 @@ impl From<MetadataSigningKey> for MetadataVerifyingKey {
 impl MetadataPublicKey {
     pub fn to_vec(&self) -> Vec<u8> {
         let verifying_key = p384::ecdsa::VerifyingKey::from(&self.0);
-        let point = verifying_key.to_encoded_point(false);
+        let point = verifying_key.to_sec1_point(false);
 
         let mut v: Vec<u8> = vec![0; PUBLIC_KEY_SIZE];
-        match point.coordinates() {
-            Coordinates::Uncompressed { x, y } => {
+        match (point.x(), point.y()) {
+            (Some(x), Some(y)) => {
                 v[0..PUBLIC_KEY_SIZE / 2].copy_from_slice(x);
                 v[PUBLIC_KEY_SIZE / 2..PUBLIC_KEY_SIZE].copy_from_slice(y);
             }
-            _ => panic!("Invalid type of Coordinates, they should be of Uncompressed type!"),
+            _ => panic!("Invalid type of Sec1Point, it should be uncompressed!"),
         };
         v
     }
@@ -100,8 +101,10 @@ impl From<MetadataPublicKey> for MetadataVerifyingKey {
 
 impl MetadataVerifyingKey {
     pub fn from_slice(data: &[u8]) -> Result<Self> {
-        let point = EncodedPoint::from_untagged_bytes(GenericArray::from_slice(data));
-        Ok(Self(p384::ecdsa::VerifyingKey::from_encoded_point(&point)?))
+        let bytes = Array::<u8, U96>::try_from(data)
+            .map_err(|_| crate::error::Error::P384EllipticCurve(p384::elliptic_curve::Error))?;
+        let point = Sec1Point::from_untagged_bytes(&bytes);
+        Ok(Self(p384::ecdsa::VerifyingKey::from_sec1_point(&point)?))
     }
 
     pub fn verify(&self, signature: &MetadataSignature, data: &[u8]) -> Result<bool> {

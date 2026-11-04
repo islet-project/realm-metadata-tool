@@ -6,8 +6,10 @@ pub enum Error {
     IOFile(#[from] std::io::Error),
     #[error("Yaml Deserialization error {0}")]
     YamlDeserialization(#[from] serde_yaml::Error),
-    #[error("Json Serialization error")]
+    #[error("P384EllipticCurve error {0}")]
     P384EllipticCurve(#[from] p384::elliptic_curve::Error),
+    #[error("P384DecodeError: {0}")]
+    P384Decode(#[from] p384::elliptic_curve::DecodeError),
     #[error("P384PKCS8DerError: {0}")]
     P384PKCS8Der(#[from] p384::pkcs8::der::Error),
     #[error("P384ECDSAError: {0}")]

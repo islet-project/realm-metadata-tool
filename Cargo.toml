@@ -9,14 +9,11 @@ bincode = "1"
 clap = { version = "*", features = ["derive"] }
 hex = "*"
 hexdump = "*"
-p384 = { version = "*", features = [ "pem" ] }
-sec1 = "*"
+p384 = { version = "0.14", features = [ "pem" ] }
+sec1 = "0.8"
 semver = "*"
 serde = { version = "*", features = ["derive", "alloc"] }
 serde-big-array = "*"
 serde_derive = "*"
 serde_yaml = "*"
 thiserror = "*"
-
-[dev-dependencies]
-rand_core = "*"
